@@ -30,13 +30,23 @@ software substitute.
 - `hsm-management-service` owns the HSM / PKCS#11 provider.
 - `cert-signer` becomes a **client** of both, rather than the sole holder of the PKCS#11 session.
 
-**This contradicts a shipped, archived decision.**
-[`../certificate-manager/documentation/explanation/architecture-decisions.md`](../certificate-manager/documentation/explanation/architecture-decisions.md)
-**ADR-003** currently states that `cert-signer` accesses private keys *only*
-through PKCS#11 and is the sole holder of that session. That ADR is **pending
-supersession**, not silently overridden — until a superseding record lands,
-ADR-003 remains the decision backed by primary research findings (F-15, F-16,
-F-17, F-17a).
+**Supersession recorded 2026-07-31.** The prior ADR-003 made `cert-signer` the
+sole holder of the PKCS#11 session. It is superseded by
+[`../certificate-manager/documentation/explanation/adr-003-key-custody-delegated-to-platform-services.md`](../certificate-manager/documentation/explanation/adr-003-key-custody-delegated-to-platform-services.md),
+written as a new file with `supersedes:` frontmatter — the prior decision was not
+edited in place.
+
+The session moves here; the **mechanism does not change**. The supersession is
+driven by platform scope, not by an evidence correction — findings F-15, F-16,
+F-17 and F-17a still back it, and the superseding record carries them forward.
+Note that the prior ADR still describes the **currently implemented** system:
+`cert-signer` holds the session today.
+
+The superseding record also names a risk this service creates: custody is now
+reachable **over the network**, where before it sat behind a container boundary.
+The old boundary was enforced by "no such path exists"; the new one is enforced
+by authentication and authorisation, which is weaker. Closing the
+`cert-api` → `hsm-management-service` path is this service's responsibility.
 
 > **[TODO — carry forward, do not re-derive]** ADR-003 already settled three
 > things this service inherits. Re-opening them needs a reason, not an oversight:

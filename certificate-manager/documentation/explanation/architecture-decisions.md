@@ -27,7 +27,8 @@ immutable; the supersede path is a new file, not an edit.
 |-----|----------|--------|----------------|
 | [ADR-001](#adr-001--ca-topology) | Two-tier CA: offline root (10 y) + per-environment issuing intermediates (3 y) | Accepted (validity corrected 2026-07-31) | F-1, F-11, F-11b, F-11c, F-11d, F-14, F-15, F-16, F-19, F-20 |
 | [ADR-002](#adr-002--enrolment-protocol) | EST (RFC 7030) as primary enrolment; named issuance profiles | Accepted | F-2, F-3, F-3a, F-3b, F-4, F-5, F-14, F-21 |
-| [ADR-003](#adr-003--private-key-custody-and-the-cert-signer-trust-boundary) | PKCS#11 as the sole key interface; SoftHSM in dev, HSM/KMS in prod | Accepted | F-15, F-16, F-17, F-17a (F-18 retracted) |
+| ~~[ADR-003](#adr-003--private-key-custody-and-the-cert-signer-trust-boundary)~~ | ~~PKCS#11 as the sole key interface; SoftHSM in dev, HSM/KMS in prod~~ | **Superseded 2026-07-31** → [`adr-003-key-custody-delegated-to-platform-services.md`](adr-003-key-custody-delegated-to-platform-services.md) | F-15, F-16, F-17, F-17a (F-18 retracted) |
+| [ADR-003](adr-003-key-custody-delegated-to-platform-services.md) *(current)* | Key custody delegated to `key-management-service` + `hsm-management-service`; `cert-signer` becomes a client | Accepted | Same findings — superseded on platform scope, not on evidence |
 | [ADR-004](#adr-004--adr-005--certificate-lifetime-and-revocation-one-decision) | 7-day leaf lifetime, renewal at 1/3 remaining, key rotated on every renewal | Accepted (joint with ADR-005) | F-7, F-10, F-12, F-13, F-14, F-15, F-21 |
 | [ADR-005](#adr-004--adr-005--certificate-lifetime-and-revocation-one-decision) | No leaf revocation infrastructure; expiry is the mechanism; CRL for intermediates only | Accepted (joint with ADR-004) | F-6, F-7, F-9, F-14, F-15 |
 | [ADR-006](#adr-006--rollout-and-rollback-mechanics) | Dual-certificate overlap window; rollback never calls the signer | Accepted | F-13, F-15, F-22, F-22a |
@@ -193,6 +194,19 @@ independently. Both were surfaced as anti-anchoring additions in Phase 1.
 ---
 
 ## ADR-003 — Private-key custody and the `cert-signer` trust boundary
+
+> **SUPERSEDED 2026-07-31** by
+> [`adr-003-key-custody-delegated-to-platform-services.md`](adr-003-key-custody-delegated-to-platform-services.md).
+>
+> The text below is **left unedited on purpose** — it is the accepted record of
+> what was decided on the evidence available at the time, and the supersession
+> rule forbids editing a decision in place. It remains an accurate description
+> of the **currently implemented** system: `cert-signer` still holds the PKCS#11
+> session, because the platform services do not exist yet.
+>
+> The supersession was driven by **platform scope, not by an evidence
+> correction** — its mechanism (PKCS#11-only, dev/prod parity by configuration,
+> root key never online) is carried forward unchanged.
 
 ### Context
 

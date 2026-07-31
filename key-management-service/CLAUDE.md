@@ -30,16 +30,19 @@ policy, and in what state* — not on the hardware that holds them (that is
 - [`../hsm-management-service`](../hsm-management-service/CLAUDE.md) owns the HSM / PKCS#11 provider.
 - `cert-signer` becomes a **client** of both, rather than the sole holder of the PKCS#11 session.
 
-**This contradicts a shipped, archived decision.**
-[`../certificate-manager/documentation/explanation/architecture-decisions.md`](../certificate-manager/documentation/explanation/architecture-decisions.md)
-**ADR-003** currently states that `cert-signer` is the *sole* holder of the
-PKCS#11 session and that no other component has a path to key material. That ADR
-is **pending supersession**, not silently overridden.
+**Supersession recorded 2026-07-31.** The prior ADR-003 made `cert-signer` the
+*sole* holder of the PKCS#11 session. It is superseded by
+[`../certificate-manager/documentation/explanation/adr-003-key-custody-delegated-to-platform-services.md`](../certificate-manager/documentation/explanation/adr-003-key-custody-delegated-to-platform-services.md),
+written as a new file with `supersedes:` frontmatter — the prior decision was not
+edited in place, per the supersession rule in that project.
 
-Per the supersession rule recorded in that document, superseding it means writing
-a **new** `explanation/adr-003-*.md` with `supersedes:` frontmatter — not editing
-the accepted decision in place. Until that lands, ADR-003 and this section
-disagree, and ADR-003 is the one currently backed by research findings.
+Two things that record makes explicit, and this service inherits:
+
+- The change is driven by **platform scope, not by an evidence correction**. The
+  prior ADR's mechanism — PKCS#11-only access, dev/prod parity by configuration,
+  root key never online — carries forward **unchanged**.
+- The prior ADR still describes the **currently implemented** system.
+  `cert-signer` holds the session today; this delegation is the target state.
 
 > **[TODO — resolve before implementation]** Two questions this boundary raises:
 > 1. Does `cert-signer` call this service for signing, or does it hold a

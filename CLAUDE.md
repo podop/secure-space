@@ -47,11 +47,17 @@ Every artificial entity **MUST** be uniquely identifiable, traceable, and audita
 `certificate-manager`'s `cert-signer` key-custody role**; `cert-signer` becomes a
 client of both.
 
-This contradicts `certificate-manager`'s **ADR-003**, which is archived and
-accepted. That ADR is **pending supersession** — superseding it means a new
-`certificate-manager/documentation/explanation/adr-003-*.md` carrying
-`supersedes:` frontmatter, never an in-place edit. Until that record lands,
-ADR-003 stands as the decision backed by primary research.
+**Supersession recorded 2026-07-31:**
+[`certificate-manager/documentation/explanation/adr-003-key-custody-delegated-to-platform-services.md`](certificate-manager/documentation/explanation/adr-003-key-custody-delegated-to-platform-services.md).
+The prior ADR-003 is left unedited as the accepted record of what was decided on
+the evidence then available, and remains an accurate description of the
+**currently implemented** system — `cert-signer` still holds the PKCS#11 session,
+because the platform services do not exist yet.
+
+The supersession is driven by **platform scope, not by an evidence correction**.
+No research finding contradicted the prior decision; its mechanism (PKCS#11-only
+access, dev/prod parity by configuration, root key never online) carries forward
+unchanged.
 
 ### Terminology Aliases
 
