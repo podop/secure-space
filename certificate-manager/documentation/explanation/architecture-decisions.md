@@ -25,12 +25,12 @@ immutable; the supersede path is a new file, not an edit.
 
 | ADR | Decision | Status | Research basis |
 |-----|----------|--------|----------------|
-| [ADR-001](#adr-001--ca-topology) | Two-tier CA: offline root (10 y) + per-environment issuing intermediates (3 y) | Accepted (validity corrected 2026-07-31) | F-1, F-11, F-11b, F-11c, F-11d, F-14, F-15, F-16, F-18, F-19, F-20 |
-| [ADR-002](#adr-002--enrolment-protocol) | EST (RFC 7030) as primary enrolment; named issuance profiles | Accepted | F-2, F-3, F-4, F-5, F-14, F-21 |
-| [ADR-003](#adr-003--private-key-custody-and-the-cert-signer-trust-boundary) | PKCS#11 as the sole key interface; SoftHSM in dev, HSM/KMS in prod | Accepted | F-15, F-16, F-17, F-18 |
+| [ADR-001](#adr-001--ca-topology) | Two-tier CA: offline root (10 y) + per-environment issuing intermediates (3 y) | Accepted (validity corrected 2026-07-31) | F-1, F-11, F-11b, F-11c, F-11d, F-14, F-15, F-16, F-19, F-20 |
+| [ADR-002](#adr-002--enrolment-protocol) | EST (RFC 7030) as primary enrolment; named issuance profiles | Accepted | F-2, F-3, F-3a, F-3b, F-4, F-5, F-14, F-21 |
+| [ADR-003](#adr-003--private-key-custody-and-the-cert-signer-trust-boundary) | PKCS#11 as the sole key interface; SoftHSM in dev, HSM/KMS in prod | Accepted | F-15, F-16, F-17, F-17a (F-18 retracted) |
 | [ADR-004](#adr-004--adr-005--certificate-lifetime-and-revocation-one-decision) | 7-day leaf lifetime, renewal at 1/3 remaining, key rotated on every renewal | Accepted (joint with ADR-005) | F-7, F-10, F-12, F-13, F-14, F-15, F-21 |
 | [ADR-005](#adr-004--adr-005--certificate-lifetime-and-revocation-one-decision) | No leaf revocation infrastructure; expiry is the mechanism; CRL for intermediates only | Accepted (joint with ADR-004) | F-6, F-7, F-9, F-14, F-15 |
-| [ADR-006](#adr-006--rollout-and-rollback-mechanics) | Dual-certificate overlap window; rollback never calls the signer | Accepted | F-13, F-15, F-22 |
+| [ADR-006](#adr-006--rollout-and-rollback-mechanics) | Dual-certificate overlap window; rollback never calls the signer | Accepted | F-13, F-15, F-22, F-22a |
 
 ---
 
@@ -109,8 +109,7 @@ Option 1 was eliminated in Phase 1: **no surveyed system** supports a
 single-tier root for a CA that must rotate. Vault documents an offline-root
 tutorial as an endorsed strategy (F-14); step-ca states plainly that the root key
 "is not needed for day-to-day CA operation and should be stored offline" and
-keeps ≥2 copies in separate locations (F-15, F-16); EJBCA recommends an
-air-gapped root with dedicated HSMs (F-18). Name constraints and path length are
+keeps ≥2 copies in separate locations (F-15, F-16). Name constraints and path length are
 enforceable per RFC 5280 (F-1) and AWS Private CA demonstrates them working as a
 production topology control (F-19). Per-environment separation is affordable
 here precisely because F-20's cost objection is AWS-specific.
@@ -176,9 +175,16 @@ prove **domain control** (F-2), which is the wrong question internally: the
 requester is already authenticated by mTLS, so re-proving name control adds a
 dependency without adding assurance. Operationally both challenges are awkward
 here — http-01 needs inbound port 80, dns-01 collides with split-horizon DNS
-(F-3). EST's `/simplereenroll` answers the actual question — *is this the same
+(F-3b). EST's `/simplereenroll` answers the actual question — *is this the same
 party, holding the key we certified?* — with the credential already in hand
 (F-4).
+
+RFC 8555 § 8.3 / § 8.4 define exactly **two** challenge types, http-01 and
+dns-01 (F-3). **TLS-ALPN-01 is not among them** — it is a separate standard,
+RFC 8737 (F-3a). That matters for this decision: "just use ACME with
+TLS-ALPN-01" is not a single-protocol adoption but two RFCs, and the operational
+objections to http-01 and dns-01 in an internal network (F-3b) apply to the
+RFC 8555 baseline as written.
 
 The profile mechanism is taken from Let's Encrypt's ACME certificate profiles
 (F-21) and Vault's roles (F-14), which are the same idea arrived at
@@ -234,8 +240,19 @@ actually enforces.
 
 EJBCA's Crypto Token is the pattern: key storage backed *either* by a soft
 keystore *or* an HSM PKCS#11 slot behind one abstraction (F-17), which is what
-makes dev/prod parity achievable. EJBCA further recommends dedicated HSMs for
-root **and** issuing keys (F-18). step-ca supports PKCS#11 HSMs and cloud KMS
+makes dev/prod parity achievable. Two operational constraints come with it:
+only **one crypto token per HSM slot** (F-17), and a PKCS#11 integration should
+target **P11 NG** rather than the SunPKCS11 provider, which EJBCA deprecated in
+9.4 (F-17a).
+
+> **Correction.** An earlier draft of this ADR cited "EJBCA recommends dedicated
+> HSMs for root **and** issuing keys" (F-18). That claim came from a vendor blog,
+> and the primary EJBCA documentation does **not** designate which CA keys must
+> be HSM-protected. F-18 is retracted; no per-key-type HSM mandate is attributed
+> to EJBCA here. The decision is unaffected — it rests on the crypto-token
+> abstraction (F-17, primary) and step-ca's split (F-15, F-16, primary).
+
+step-ca supports PKCS#11 HSMs and cloud KMS
 for the online intermediate while keeping the root in cold storage (F-15, F-16)
 — exactly the split adopted here.
 
@@ -390,9 +407,25 @@ Option 1.
 
 ### Research basis
 
-The convergent industry pattern is a dual-certificate overlap window rather than
-an atomic swap, with the replacement installed while the existing certificate
-remains in place (F-22).
+The primary evidence establishes **retain-until-signed**: cert-manager "waits
+until the Certificate object is correctly signed before overwriting the
+`tls.key` file in the Secret", and constrains renewal windows so at least one
+valid window exists before expiry (F-22). Existing material is never destroyed
+before its replacement is confirmed.
+
+> **Scope of the evidence.** cert-manager documents replace-on-success of a
+> single Secret — **not** two simultaneously-valid certificates with the
+> consumer choosing. The dual-valid framing rests on secondary sources only, and
+> cert-manager's docs do not cover renewal-failure handling at all (F-22a).
+>
+> This decision therefore goes **deliberately further than the primary
+> evidence**. Retain-until-signed removes the no-valid-material window; the
+> overlap window additionally lets a consumer mid-rotation present either
+> certificate, which is what makes the roll safe for consumers this system does
+> not control the restart timing of. That extra property is a **project choice
+> justified by the kill criteria** — no no-valid-certificate instant, and
+> rollback that never calls the signer — not an industry pattern this research
+> established.
 
 Two framework kill criteria eliminated the alternatives directly. *Any option
 requiring a re-sign to roll back is killed* — this removes naive two-phase swap

@@ -65,19 +65,32 @@ Source: <https://datatracker.ietf.org/doc/rfc8555/>
 
 ### ACME applicability to an internal CA
 
-The standard challenge types assume public reachability. http-01 requires
-inbound HTTP on port 80. dns-01 requires DNS records the validating server can
-resolve, which collides with split-horizon DNS — a client may only see the
-internal view while the ACME server validates against the public one.
-**TLS-ALPN-01** is described as better suited to private environments (proof via
-a temporary certificate in the TLS handshake, no DNS or HTTP routing needed) but
-conflicts with load balancers or proxies that terminate TLS.
+**Standards position (primary).** RFC 8555 § 8.3 defines **http-01**, in which
+the server performs a request to
+`http://<domain>/.well-known/acme-challenge/<token>` — the `http://` scheme's
+default port, 80; the RFC does **not** name the port explicitly in § 8.3.
+§ 8.4 defines **dns-01**. Those are the only two challenge types in RFC 8555.
+
+**TLS-ALPN-01 is a separate standard**, RFC 8737 (February 2020, Proposed
+Standard): the server connects on **TCP 443**, and the client presents a
+self-signed certificate carrying a critical `acmeIdentifier` extension (SHA-256
+of the key authorization) plus a SAN for the validated domain, negotiating
+`acme-tls/1` via ALPN. Choosing TLS-ALPN-01 therefore means adopting a second
+RFC, not selecting an option inside RFC 8555.
+
+**Operational position (secondary).** In an internal deployment, http-01 needs
+inbound reachability on port 80; dns-01 collides with split-horizon DNS, where a
+client may see only the internal view while the ACME server validates against
+the public one; and TLS-ALPN-01 conflicts with load balancers or proxies that
+terminate TLS. These are deployment observations, not RFC text. **`[secondary]`**
 
 Note that for an internal CA, "prove you control this name" is a materially
 weaker requirement than for public trust — the requester is typically already
-authenticated by other means. **`[secondary]`**
+authenticated by other means.
 
-Sources: <https://www.bastionxp.com/blog/acme-certificate-automation-internal-pki-complete-guide/>,
+Sources: <https://www.rfc-editor.org/rfc/rfc8555.html> § 8.3–8.4 (primary),
+<https://datatracker.ietf.org/doc/rfc8737/> (primary),
+<https://www.bastionxp.com/blog/acme-certificate-automation-internal-pki-complete-guide/>,
 <https://cert-manager.io/docs/troubleshooting/acme/>
 
 ### RFC 7030 — EST (Enrollment over Secure Transport)
@@ -161,9 +174,19 @@ suggested cryptoperiods by key type; Table 5 gives protection requirements for
 cryptographic keys. Rev. 5 adds emphasis on protecting key **metadata**, access
 control, identity authentication, and key/certificate inventory management.
 
-Search summaries report CA signing-key cryptoperiods of roughly 20 years (root)
-and 5 years (intermediate); **this specific pairing was not confirmed against
-the PDF and must be verified before any decision rests on it.** **`[secondary]`**
+**Read directly (primary).** § 5.3.6 item 1 and Table 1 row 1: a **private
+signature key** — the category a CA issuing key falls into — has a recommended
+maximum cryptoperiod (originator-usage period) of **"about one to three years"**,
+and "a private signature key shall be destroyed at the end of its cryptoperiod".
+Table 1 row 2: a **public signature-verification key** has a cryptoperiod of
+**"several years (depends on key size)"**. § 5.3.6 further notes that when the
+public key is CA-certified, the private key's cryptoperiod "ends when the
+`notAfter` date is reached on the last certificate issued for the public key".
+
+An earlier draft of this document repeated a search-summary figure of ~20 years
+(root) / 5 years (intermediate). That pairing does **not** appear in the
+publication and is withdrawn. Reading the source corrected a shipped
+architecture value — see F-11, F-11b, F-11c and ADR-001. **`[primary]`**
 
 Source: <https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-57pt1r5.pdf>
 
@@ -384,7 +407,9 @@ Each finding is a single falsifiable statement. Phase 2 ADRs cite these by ID.
 |---|---|
 | **F-1** | RFC 5280 (May 2008, Proposed Standard) is updated by nine later RFCs but **not obsoleted**; it remains the normative profile for certificate and CRL structure, including name constraints and path-length constraints. |
 | **F-2** | RFC 8555 (ACME, March 2019, Proposed Standard) is neither obsoleted nor updated, and defines exactly two challenge types: http-01 and dns-01. |
-| **F-3** | ACME's standard challenges assume public reachability — http-01 needs inbound port 80, dns-01 collides with split-horizon DNS; TLS-ALPN-01 suits private environments but conflicts with TLS-terminating proxies. `[secondary]` |
+| **F-3** | **VERIFIED against RFC 8555 § 8.3 / § 8.4.** The RFC defines exactly **two** challenge types: **http-01** (§ 8.3) and **dns-01** (§ 8.4). For http-01 the server performs a request to `http://<domain>/.well-known/acme-challenge/<token>` — the `http://` scheme's default port (80); note the RFC does **not** name the port number explicitly in § 8.3, so "port 80" is the scheme default, not a quoted requirement. `[primary]` |
+| **F-3a** | **TLS-ALPN-01 is NOT defined in RFC 8555.** It is specified separately in **RFC 8737** (*ACME TLS ALPN Challenge Extension*, February 2020, Proposed Standard): the server connects on **TCP 443**, the client presents a self-signed certificate carrying a critical `acmeIdentifier` extension (SHA-256 of the key authorization) plus a SAN for the validated domain, and negotiates the `acme-tls/1` protocol via ALPN. Adopting TLS-ALPN-01 therefore means adopting a **second RFC**, not an option inside RFC 8555. `[primary]` |
+| **F-3b** | The *operational* claims about internal deployments — that http-01 needs inbound reachability on port 80, that dns-01 collides with split-horizon DNS views, and that TLS-ALPN-01 conflicts with TLS-terminating proxies — are deployment experience, not RFC text. They follow plausibly from F-3/F-3a but are not standards claims. `[secondary]` |
 | **F-4** | RFC 7030 (EST) authenticates re-enrolment via the client's existing TLS certificate at `/simplereenroll` — the client proves identity with the credential it is replacing. |
 | **F-5** | RFC 8894 (SCEP) is **Informational, not Standards Track**, and its own text documents SHA-1 defaults, absent proof-of-possession on renewal, unauthenticated `GetCACaps` permitting downgrade, and no issuance confirmation. |
 | **F-6** | RFC 6960 (OCSP) concedes in its own security considerations that responses are replayable, that the protocol is DoS-susceptible, and that implementations may need CRL fallback. |
@@ -401,12 +426,14 @@ Each finding is a single falsifiable statement. Phase 2 ADRs cite these by ID.
 | **F-14** | Vault PKI states the lifetime↔revocation coupling directly: short TTLs make revocation less likely to be needed, keep CRLs small, and help the engine scale. It also promotes certificates held only in memory, never written to disk. |
 | **F-15** | step-ca defaults leaf certificates to **24 hours**, recommends ≤1 month for host/service certificates, and explicitly prefers short lifetimes **over active revocation**, describing CRL as introducing operational dependencies. |
 | **F-16** | step-ca keeps the root key in offline cold storage (HSM or air-gapped, ≥2 copies in separate locations) and supports PKCS#11 HSM or cloud KMS for the **online intermediate** signing key. |
-| **F-17** | EJBCA's Crypto Token abstracts key storage over *either* a soft keystore (database file) *or* an HSM PKCS#11 slot — so development and production custody differ by configuration, not by code path. `[secondary]` |
-| **F-18** | EJBCA guidance recommends dedicated HSMs not only for the root but also for issuing-CA keys **and OCSP signing keys**. `[secondary]` |
+| **F-17** | **VERIFIED against the EJBCA HSM documentation page.** When creating a Crypto Token "you can select between Soft and PKCS#11 crypto tokens" — one abstraction over both software keystore and HSM slot, so development and production custody differ by configuration, not by code path. Operational constraint, quoted: "create only one crypto token per *slot/token* on an HSM. Creating multiple crypto tokens for the same slot is not supported and may cause issues." `[primary]` |
+| **F-17a** | Same page: **P11 NG** is "the primary implementation of PKCS#11 integration in EJBCA Enterprise"; the older Java **SunPKCS11** provider is **deprecated as of EJBCA 9.4**. A PKCS#11 integration should target P11 NG rather than SunPKCS11. `[primary]` |
+| **F-18** | **RETRACTED — not supported by the primary source.** The earlier claim ("EJBCA recommends dedicated HSMs for root, issuing-CA **and** OCSP signing keys") came from a vendor blog and a search summary. The primary EJBCA HSM page defines key *purposes* (certificate signing, CRL signing, key encryption) but **does not designate which CA keys must be HSM-protected versus software-stored**. No such per-key-type mandate should be attributed to EJBCA. `[retracted]` |
 | **F-19** | AWS Private CA enforces `Not After` ≤ issuer's `Not After`, basic constraints, path length, and **name constraints** — but does **not** validate SubjectPublicKeyInfo or Subject Alternative Name, copying both from the CSR unvalidated. |
 | **F-20** | AWS Private CA bills monthly **per CA** plus per certificate issued, so cost scales with the number of CAs — penalising per-environment intermediate designs. |
 | **F-21** | Let's Encrypt made six-day certificates (~160 h) generally available in January 2026, selected via **ACME certificate profiles**; IP-address certificates must be short-lived by policy. |
-| **F-22** | The convergent zero-downtime rotation pattern is a **dual-certificate overlap window** — the replacement is installed while the existing certificate remains valid, eliminating any instant with no valid certificate. `[secondary]` |
+| **F-22** | **VERIFIED, but narrower than previously stated.** cert-manager's primary documentation supports **retain-until-signed**, not a two-valid-certificates overlap: with `rotationPolicy: Always`, "cert-manager waits until the Certificate object is correctly signed before overwriting the `tls.key` file in the Secret". Renewal windows are additionally constrained so that "there is at least one valid renewal window between the calculated renewal time and the certificate's expiry". Existing material is therefore never destroyed before its replacement is confirmed. `[primary]` |
+| **F-22a** | The stronger framing — a **dual-certificate overlap window** in which old *and* new are simultaneously valid and the consumer chooses — is **not** what cert-manager documents; it describes replace-on-success of a single Secret. The dual-valid pattern rests on secondary sources only, and the cert-manager docs do not describe renewal-failure handling at all. `[secondary]` |
 
 ---
 
@@ -417,6 +444,7 @@ Each finding is a single falsifiable statement. Phase 2 ADRs cite these by ID.
 - RFC 5280 — <https://datatracker.ietf.org/doc/rfc5280/>
 - RFC 8555 — <https://datatracker.ietf.org/doc/rfc8555/>
 - RFC 7030 — <https://datatracker.ietf.org/doc/rfc7030/>
+- RFC 8737 (TLS-ALPN-01) — <https://datatracker.ietf.org/doc/rfc8737/>
 - RFC 8894 — <https://datatracker.ietf.org/doc/rfc8894/>
 - RFC 6960 — <https://datatracker.ietf.org/doc/rfc6960/>
 - RFC 6962 — <https://datatracker.ietf.org/doc/rfc6962/>
@@ -430,6 +458,7 @@ Each finding is a single falsifiable statement. Phase 2 ADRs cite these by ID.
 - HashiCorp Vault PKI — <https://developer.hashicorp.com/vault/docs/secrets/pki>
 - step-ca production — <https://smallstep.com/docs/step-ca/certificate-authority-server-production/>
 - EJBCA certificate profiles — <https://docs.keyfactor.com/ejbca/latest/certificate-profiles-overview>
+- EJBCA hardware security modules — <https://docs.keyfactor.com/ejbca/latest/hardware-security-modules-hsm>
 - AWS Private CA — <https://docs.aws.amazon.com/privateca/latest/userguide/PcaWelcome.html>
 - Let's Encrypt, ending OCSP — <https://letsencrypt.org/2024/12/05/ending-ocsp>
 - Let's Encrypt, 6-day + IP GA — <https://letsencrypt.org/2026/01/15/6day-and-ip-general-availability>
