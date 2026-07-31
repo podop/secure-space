@@ -18,10 +18,22 @@ Each of these responsibilities is intended to live in its **own container** — 
 | Component | Container role | Notes |
 |-----------|---------------|-------|
 | `cert-api` | Public HTTP API — EST enrolment / status | Quarkus (RESTEasy Reactive). Holds no key material. |
-| `cert-signer` | CA / signing worker | Sole holder of the PKCS#11 session; never externally routable |
+| `cert-signer` | CA / signing worker | Sole holder of the PKCS#11 session **(superseded — see note below)**; never externally routable |
 | `cert-renewer` | Expiry scanning **and** auto-renewal | Merged `cert-monitor` + `cert-roller` — same privileges and data access, so a container boundary between them isolated nothing |
 | `cert-db` | Oracle DB | Persistence for certificates, enrolment requests, roll state, audit log |
 | `softhsm` | PKCS#11 token (**non-production only**) | Dev/CI substitute for the production HSM/KMS |
+
+> **Key custody is moving out of this project (decided 2026-07-31, not yet
+> implemented).** The superseding ADR-003 delegates custody to two sibling
+> services: [`../key-management-service/`](../key-management-service/CLAUDE.md)
+> (key lifecycle, policy, inventory) and
+> [`../hsm-management-service/`](../hsm-management-service/CLAUDE.md) (HSM /
+> PKCS#11 provider). `cert-signer` becomes a **client** of both; the `softhsm`
+> sidecar moves with the custody boundary. Until that lands, the table above
+> describes the implemented target of the current scaffold. **Do not build new
+> code against `cert-signer`-as-custodian** — read
+> [`documentation/explanation/adr-003-key-custody-delegated-to-platform-services.md`](documentation/explanation/adr-003-key-custody-delegated-to-platform-services.md)
+> first.
 
 **Terminology aliases:** *[fill in as decisions land]*
 

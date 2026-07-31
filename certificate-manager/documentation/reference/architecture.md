@@ -158,6 +158,12 @@ recorded in
 (ADR-001 … ADR-006), each traced to findings in
 [`../ephemeral/research/pki-market-research.md`](../ephemeral/research/pki-market-research.md).
 
+> **Note:** ADR-003 (key custody) has been superseded on platform scope by
+> [`../explanation/adr-003-key-custody-delegated-to-platform-services.md`](../explanation/adr-003-key-custody-delegated-to-platform-services.md),
+> pending implementation. This document continues to describe the **implemented**
+> system, in which `cert-signer` holds the PKCS#11 session; it will be updated
+> when the delegation is built.
+
 ## Not yet specified
 
 - Bootstrap credential for first issuance.
