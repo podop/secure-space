@@ -1,0 +1,36 @@
+# Architecture — certificate-manager
+
+> Last updated: 2026-07-31
+
+## Overview
+
+certificate-manager is a set of cooperating Quarkus microservices that together own the X.509 certificate lifecycle for internal consumers. Each service runs in its own container; state lives in a shared Oracle DB. The topology is intended to isolate the signing key material from public-facing endpoints and to let expiration monitoring / auto-rolling scale independently from issuance traffic.
+
+*[Refine this section as decisions land in `/dr-prd`.]*
+
+## Components
+
+| Component | Path | Language | Purpose |
+|-----------|------|----------|---------|
+| cert-api | `cert-api/` | Java 21 / Quarkus | Public HTTP API — issuance requests, CSR submission, status |
+| cert-signer | `cert-signer/` | Java 21 / Quarkus | CA / signing worker — holds private keys, signs on demand |
+| cert-monitor | `cert-monitor/` | Java 21 / Quarkus | Scheduled `notAfter` scanner across managed certificates |
+| cert-roller | `cert-roller/` | Java 21 / Quarkus | Auto-renewal worker — reissues and rotates certs before expiry |
+| cert-db | `db/` | Oracle DB (container) | Persistence — certificates, CSRs, audit log |
+
+## Data Flow
+
+*[TODO — sequence diagrams after `/dr-prd`:]*
+
+1. Issuance request → cert-api validates → cert-signer signs → cert-db persists → cert-api returns cert to caller
+2. CSR submission → cert-api validates subject/SAN → cert-signer signs (if policy allows) → cert-db persists
+3. Monitor loop → cert-monitor scans cert-db → publishes "expires-soon" events → cert-roller acts
+4. Rolling → cert-roller requests reissue → cert-signer signs → cert-roller swaps into consumer (delivery mechanism TBD)
+
+## Security Model
+
+- **Key isolation** — signing private keys live only inside cert-signer's container filesystem (or a mounted secret store / HSM in production); cert-api never sees them.
+- **CSR validation** — subject / SAN / key-usage / extended-key-usage are validated against policy before signing.
+- **Audit log** — every issuance, revocation, and rolling event is written to cert-db with correlation ID.
+- **Transport** — inter-container calls run over mTLS once the CA is bootstrapped.
+- **Secrets** — DB passwords, initial CA material, and any consumer credentials live in mounted volumes / secret stores, never in git.

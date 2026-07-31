@@ -1,0 +1,53 @@
+# --- Datarim workflow state (local only) ---
+datarim/
+!datarim/.gitkeep
+
+# --- Java / Maven ---
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+hs_err_pid*
+replay_pid*
+dependency-reduced-pom.xml
+.mvn/wrapper/maven-wrapper.jar
+
+# --- Quarkus ---
+.quarkus/
+build/
+
+# --- IDE ---
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.settings/
+.project
+.classpath
+.factorypath
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- Env / secrets ---
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.p12
+*.jks
+!**/test-fixtures/**/*.pem
+!**/test-fixtures/**/*.key
+
+# --- Logs ---
+*.log
+logs/
+
+# --- Docker ---
+# (compose files are committed; volumes/data are not)
+docker-data/
