@@ -1,0 +1,14 @@
+# Project-local overrides. Umbrella .gitignore already covers Java/Maven/Quarkus/IDE/OS/env.
+
+# --- Maven wrapper — commit the wrapper itself, ignore its cached jar ---
+!.mvn/
+!mvnw
+!mvnw.cmd
+.mvn/wrapper/maven-wrapper.jar
+
+# --- Local dev artifacts ---
+.env.local
+
+# --- Local key store / DB data — NEVER commit ---
+key-data/
+db-data/

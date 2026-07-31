@@ -36,13 +36,30 @@ Every artificial entity **MUST** be uniquely identifiable, traceable, and audita
 
 **Projects:**
 1. **certificate-manager** (`certificate-manager/`) — Java 21 / Quarkus service implementing the full X.509 certificate lifecycle (issuance, CSR handling, expiration monitoring, automatic renewal/rolling). See [`certificate-manager/CLAUDE.md`](certificate-manager/CLAUDE.md).
-2. *[future projects land as sibling directories]*
+2. **key-management-service** (`key-management-service/`) — Java 21 / Quarkus service owning cryptographic key lifecycle, policy, and inventory. See [`key-management-service/CLAUDE.md`](key-management-service/CLAUDE.md).
+3. **hsm-management-service** (`hsm-management-service/`) — Java 21 / Quarkus service owning the HSM and the PKCS#11 provider. See [`hsm-management-service/CLAUDE.md`](hsm-management-service/CLAUDE.md).
+4. *[future projects land as sibling directories]*
+
+### Cross-project boundary — key custody
+
+**Operator decision, 2026-07-31.** `key-management-service` (key lifecycle) and
+`hsm-management-service` (HSM / PKCS#11 provider) **supersede
+`certificate-manager`'s `cert-signer` key-custody role**; `cert-signer` becomes a
+client of both.
+
+This contradicts `certificate-manager`'s **ADR-003**, which is archived and
+accepted. That ADR is **pending supersession** — superseding it means a new
+`certificate-manager/documentation/explanation/adr-003-*.md` carrying
+`supersedes:` frontmatter, never an in-place edit. Until that record lands,
+ADR-003 stands as the decision backed by primary research.
 
 ### Terminology Aliases
 
 | When the user / docs say... | They mean... | Code lives in |
 |---|---|---|
 | "cert-manager" / "CM" | certificate-manager | `certificate-manager/` |
+| "KMS" / "key service" | key-management-service | `key-management-service/` |
+| "HSM service" | hsm-management-service | `hsm-management-service/` |
 | "the umbrella" | this workspace root | `./` |
 
 ## Tech Stack
@@ -81,7 +98,32 @@ This project uses [Datarim](https://datarim.club) for structured task execution.
 - **Complexity routing:** L1 (quick fix) through L4 (major feature) — each level routes through the stages it needs
 - **State:** `datarim/` directory (local workflow state, gitignored)
 - **Archives:** `documentation/archive/` (committed to git)
-- **Task prefixes:** `CERT-*` for certificate-manager, add prefix per project as it lands.
+- **Task prefixes:** see § Task Prefix Registry below — add a row per project as it lands.
+
+## Task Prefix Registry
+
+Resolved by `scripts/datarim-doctor.sh` walking up from the Datarim root. Without
+a row here a prefix falls back to `general/`. Subdirectory names must be
+lowercase kebab-case.
+
+| Prefix | Project | Area Subdirectory |
+|--------|---------|-------------------|
+| CERT | certificate-manager | certificate-manager |
+| KMS | key-management-service | key-management-service |
+| HSM | hsm-management-service | hsm-management-service |
+
+<!--
+Do NOT wrap the Prefix cell in backticks. The resolver
+(scripts/datarim-doctor.sh :: lookup_project_prefix_from_claude_md) matches
+rows with ^\| *[A-Z][A-Z0-9_-]* *\| — a leading backtick fails the match and the
+prefix silently falls back to general/. Verified empirically 2026-07-31.
+-->
+
+> **Note.** `CERT-0001` was archived to `documentation/archive/general/` **before**
+> this registry existed — that was the correct fallback at the time. Its archive
+> stays where it is (rewriting a committed permanent record to match a
+> later-added convention would be worse than the inconsistency). Future `CERT-*`
+> tasks resolve to `certificate-manager/`.
 - **Start a task:** `/dr-init <description>`
 - **Check status:** `/dr-status`
 
